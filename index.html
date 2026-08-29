@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GitPort — build a portfolio from your GitHub</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0C10;
+    --panel:#12151B;
+    --panel-2:#161A21;
+    --paper:#F6F4EE;
+    --green:#3FB950;
+    --amber:#E3B341;
+    --slate:#8B949E;
+    --text:#E6E8EB;
+    --border:#232830;
+    --danger:#F0716A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--text);font-family:'Inter',sans-serif;height:100%;}
+  .app{min-height:100vh;display:flex;flex-direction:column;}
+
+  .topbar{
+    display:flex;align-items:center;gap:10px;
+    padding:18px 28px;border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0D1016,#0A0C10);
+  }
+  .logo-dot{width:10px;height:10px;border-radius:2px;background:var(--green);
+    box-shadow:0 0 12px rgba(63,185,80,.7);}
+  .topbar .brand{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;letter-spacing:.02em;}
+  .topbar .tag{color:var(--slate);font-size:13px;margin-left:6px;font-family:'JetBrains Mono',monospace;}
+
+  .workspace{
+    flex:1;display:grid;grid-template-columns:380px 1fr;gap:0;
+    min-height:0;
+  }
+  @media (max-width: 880px){
+    .workspace{grid-template-columns:1fr;}
+  }
+
+  .console{
+    border-right:1px solid var(--border);
+    padding:24px;display:flex;flex-direction:column;gap:16px;
+    background:var(--panel);
+  }
+  .console-header{
+    font-family:'JetBrains Mono',monospace;color:var(--green);font-size:13px;
+  }
+  .console-header .cursor{display:inline-block;width:7px;height:14px;background:var(--green);
+    vertical-align:-2px;animation:blink 1.1s steps(1) infinite;margin-left:2px;}
+  @keyframes blink{50%{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){ .console-header .cursor{animation:none;} }
+
+  label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);font-family:'JetBrains Mono',monospace;}
+  .input-row{display:flex;gap:8px;}
+  #usernameInput{
+    flex:1;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:11px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:14px;
+    outline:none;
+  }
+  #usernameInput:focus{border-color:var(--green);}
+  button{
+    cursor:pointer;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;
+    font-weight:600;font-size:13px;padding:11px 16px;transition:filter .15s ease, transform .1s ease;
+  }
+  button:active{transform:scale(.97);}
+  #generateBtn{background:var(--green);color:#04140A;}
+  #generateBtn:hover{filter:brightness(1.08);}
+  #generateBtn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .log{
+    font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.7;
+    background:var(--ink);border:1px solid var(--border);border-radius:6px;
+    padding:12px 14px;min-height:120px;max-height:220px;overflow-y:auto;color:var(--slate);
+  }
+  .log .ok{color:var(--green);}
+  .log .err{color:var(--danger);}
+  .log .amber{color:var(--amber);}
+
+  .options{display:flex;flex-direction:column;gap:12px;padding-top:6px;border-top:1px dashed var(--border);}
+  .profile-mini{display:flex;align-items:center;gap:10px;}
+  .profile-mini img{width:38px;height:38px;border-radius:6px;border:1px solid var(--border);}
+  .profile-mini .name{font-size:13px;font-weight:600;}
+  .profile-mini .meta{font-size:11px;color:var(--slate);font-family:'JetBrains Mono',monospace;}
+
+  #downloadBtn{background:transparent;border:1px solid var(--green);color:var(--green);}
+  #downloadBtn:hover{background:rgba(63,185,80,.1);}
+
+  .hint{font-size:12px;color:var(--slate);line-height:1.6;}
+  .hint b{color:var(--text);}
+
+  .preview-pane{display:flex;flex-direction:column;min-height:0;}
+  .preview-chrome{
+    display:flex;align-items:center;gap:8px;padding:12px 16px;
+    background:var(--panel-2);border-bottom:1px solid var(--border);
+  }
+  .chrome-dot{width:9px;height:9px;border-radius:50%;background:#3A3F48;}
+  .chrome-url{
+    margin-left:8px;background:var(--ink);border:1px solid var(--border);border-radius:5px;
+    padding:5px 12px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--slate);flex:1;
+  }
+  .preview-frame-wrap{flex:1;position:relative;background:repeating-linear-gradient(45deg,#0D1016,#0D1016 10px,#0B0D12 10px,#0B0D12 20px);}
+  #previewFrame{width:100%;height:100%;border:0;background:var(--paper);display:none;}
+  .empty-state{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:8px;color:var(--slate);font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;padding:20px;
+  }
+  .empty-state .big{font-size:28px;}
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo-dot"></div>
+    <div class="brand">GitPort</div>
+    <div class="tag">// turn a GitHub username into a portfolio site</div>
+  </div>
+
+  <div class="workspace">
+    <div class="console">
+      <div class="console-header">$ gitport init<span class="cursor"></span></div>
+
+      <div>
+        <label for="usernameInput">GitHub username</label>
+        <div class="input-row" style="margin-top:6px;">
+          <input id="usernameInput" placeholder="e.g. torvalds" autocomplete="off" />
+          <button id="generateBtn">Generate</button>
+        </div>
+      </div>
+
+      <div class="log" id="log">waiting for a username…</div>
+
+      <div class="options" id="optionsPanel" hidden>
+        <div class="profile-mini" id="profileMini"></div>
+        <button id="downloadBtn">↓ Download static site (index.html)</button>
+        <div class="hint">This file is the whole site — <b>no backend, no build step</b>. Drop it in a free static host (see notes below) and it's live.</div>
+      </div>
+
+      <div class="hint" style="margin-top:auto;padding-top:10px;border-top:1px dashed var(--border);">
+        Uses GitHub's public REST API directly from your browser. Unauthenticated requests are capped at <b>60/hour per IP</b> — plenty for personal use, but if you're testing repeatedly you may hit it.
+      </div>
+    </div>
+
+    <div class="preview-pane">
+      <div class="preview-chrome">
+        <div class="chrome-dot"></div><div class="chrome-dot"></div><div class="chrome-dot"></div>
+        <div class="chrome-url" id="chromeUrl">yourname.github.io</div>
+      </div>
+      <div class="preview-frame-wrap">
+        <iframe id="previewFrame" title="Portfolio preview"></iframe>
+        <div class="empty-state" id="emptyState">
+          <div class="big">◌</div>
+          <div>Enter a GitHub username and hit Generate.<br>The live preview renders here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const logEl = document.getElementById('log');
+const usernameInput = document.getElementById('usernameInput');
+const generateBtn = document.getElementById('generateBtn');
+const optionsPanel = document.getElementById('optionsPanel');
+const profileMini = document.getElementById('profileMini');
+const downloadBtn = document.getElementById('downloadBtn');
+const previewFrame = document.getElementById('previewFrame');
+const emptyState = document.getElementById('emptyState');
+const chromeUrl = document.getElementById('chromeUrl');
+
+let lastHTML = '';
+let lastUsername = '';
+
+function log(msg, cls){
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  if(logEl.textContent.trim() === 'waiting for a username…'){ logEl.textContent=''; }
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog(){ logEl.innerHTML=''; }
+
+const LANG_COLORS = {
+  JavaScript:'#f1e05a', TypeScript:'#3178c6', Python:'#3572A5', Java:'#b07219',
+  Go:'#00ADD8', Rust:'#dea584', 'C++':'#f34b7d', C:'#555555', 'C#':'#178600',
+  Ruby:'#701516', PHP:'#4F5D95', Swift:'#F05138', Kotlin:'#A97BFF', HTML:'#e34c26',
+  CSS:'#563d7c', Shell:'#89e051', Dart:'#00B4AB', Vue:'#41b883', Scala:'#c22d40',
+  Elixir:'#6e4a7e', Haskell:'#5e5086', Lua:'#000080'
+};
+
+function escapeHTML(s){
+  return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function timeAgo(dateStr){
+  const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000);
+  if(days < 1) return 'today';
+  if(days < 30) return days + 'd ago';
+  if(days < 365) return Math.floor(days/30) + 'mo ago';
+  return Math.floor(days/365) + 'y ago';
+}
+
+function scoreRepo(r){
+  const stars = r.stargazers_count || 0;
+  const forks = r.forks_count || 0;
+  const daysSincePush = (Date.now() - new Date(r.pushed_at)) / 86400000;
+  const recency = Math.max(0, 90 - daysSincePush) / 90;
+  const hasDesc = r.description ? 1 : 0;
+  return stars * 3 + forks * 1.5 + recency * 8 + hasDesc * 2;
+}
+
+async function fetchJSON(url){
+  const res = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' }});
+  if(res.status === 404) throw new Error('NOT_FOUND');
+  if(res.status === 403){
+    const remaining = res.headers.get('x-ratelimit-remaining');
+    if(remaining === '0') throw new Error('RATE_LIMIT');
+    throw new Error('FORBIDDEN');
+  }
+  if(!res.ok) throw new Error('HTTP_' + res.status);
+  return res.json();
+}
+
+function buildSiteHTML(profile, repos, stats){
+  const name = escapeHTML(profile.name || profile.login);
+  const login = escapeHTML(profile.login);
+  const bio = escapeHTML(profile.bio || '');
+  const avatar = profile.avatar_url;
+  const location = escapeHTML(profile.location || '');
+  const blog = profile.blog ? (profile.blog.startsWith('http') ? profile.blog : 'https://' + profile.blog) : '';
+  const topLang = stats.topLanguages[0] || 'code';
+
+  const tagline = bio || `Building things in ${topLang}. ${stats.totalStars} stars across ${profile.public_repos} public repos.`;
+
+  const skillsHTML = stats.topLanguages.map(l =>
+    `<span class="skill-pill" style="--dot:${LANG_COLORS[l]||'#8b8b8b'}">${escapeHTML(l)}</span>`
+  ).join('');
+
+  const cardsHTML = repos.map(r => {
+    const lang = r.language;
+    const dot = lang ? `<span class="lang-dot" style="background:${LANG_COLORS[lang]||'#8b8b8b'}"></span>${escapeHTML(lang)}` : '';
+    const desc = r.description ? escapeHTML(r.description) : 'No description provided.';
+    return `
+    <a class="card" href="${r.html_url}" target="_blank" rel="noopener">
+      <div class="card-top">
+        <span class="card-name">${escapeHTML(r.name)}</span>
+        <span class="card-star">★ ${r.stargazers_count}</span>
+      </div>
+      <p class="card-desc">${desc}</p>
+      <div class="card-meta">
+        <span>${dot}</span>
+        <span class="card-updated">updated ${timeAgo(r.pushed_at)}</span>
+      </div>
+    </a>`;
+  }).join('');
+
+  const links = [];
+  links.push(`<a href="${profile.html_url}" target="_blank" rel="noopener">GitHub ↗</a>`);
+  if(blog) links.push(`<a href="${blog}" target="_blank" rel="noopener">Website ↗</a>`);
+  if(profile.twitter_username) links.push(`<a href="https://x.com/${profile.twitter_username}" target="_blank" rel="noopener">X ↗</a>`);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${name} — Portfolio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="${escapeHTML(tagline).slice(0,150)}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF7F2; --ink:#1A1A17; --sub:#6B6A63; --accent:#4B4A8F; --accent-soft:#EFEEF9;
+    --line:#E4E1D8; --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;line-height:1.55;}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px;}
+  a{color:inherit;}
+
+  .hero{padding:88px 0 56px;border-bottom:1px solid var(--line);}
+  .prompt{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);margin-bottom:18px;}
+  .prompt .cursor{display:inline-block;width:7px;height:13px;background:var(--accent);vertical-align:-1px;margin-left:2px;animation:blink 1.1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){ .cursor{animation:none;} }
+
+  .hero-top{display:flex;align-items:center;gap:20px;}
+  .hero-top img{width:76px;height:76px;border-radius:10px;border:1px solid var(--line);}
+  .hero h1{font-family:'Newsreader',serif;font-weight:600;font-size:40px;margin:0 0 4px;}
+  .hero .handle{font-family:'JetBrains Mono',monospace;color:var(--sub);font-size:14px;}
+  .hero p.tagline{font-size:17px;color:#33322E;max-width:640px;margin:22px 0 0;font-style:italic;font-family:'Newsreader',serif;}
+
+  .meta-row{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--sub);}
+  .meta-row span{white-space:nowrap;}
+  .links-row{display:flex;gap:16px;margin-top:22px;font-size:13.5px;font-weight:600;}
+  .links-row a{text-decoration:none;border-bottom:1px solid var(--accent);color:var(--accent);padding-bottom:1px;}
+
+  .skills{padding:30px 0;border-bottom:1px solid var(--line);}
+  .skills-label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);margin-bottom:12px;}
+  .skill-pill{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);color:var(--accent);
+    font-family:'JetBrains Mono',monospace;font-size:12px;padding:5px 10px;border-radius:20px;margin:0 6px 6px 0;}
+  .skill-pill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--dot);}
+
+  .projects{padding:44px 0 20px;}
+  .projects-label{font-family:'Newsreader',serif;font-style:italic;font-size:22px;margin-bottom:22px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:640px){ .grid{grid-template-columns:1fr;} }
+  .card{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 18px 16px;
+    text-decoration:none;color:inherit;transition:border-color .15s ease, transform .1s ease;}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card-top{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .card-name{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14.5px;}
+  .card-star{font-family:'JetBrains Mono',monospace;font-size:12px;color:#B08B2E;white-space:nowrap;}
+  .card-desc{font-size:13.5px;color:var(--sub);margin:10px 0 14px;min-height:36px;}
+  .card-meta{display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--sub);}
+  .lang-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:-1px;}
+
+  footer{padding:40px 0 70px;text-align:center;color:var(--sub);font-family:'JetBrains Mono',monospace;font-size:11.5px;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="prompt">$ whoami<span class="cursor"></span></div>
+      <div class="hero-top">
+        <img src="${avatar}" alt="${name}">
+        <div>
+          <h1>${name}</h1>
+          <div class="handle">@${login}${location ? ' · ' + location : ''}</div>
+        </div>
+      </div>
+      <p class="tagline">${tagline}</p>
+      <div class="meta-row">
+        <span>${profile.public_repos} public repos</span>
+        <span>${stats.totalStars} total stars</span>
+        <span>${profile.followers} followers</span>
+      </div>
+      <div class="links-row">${links.join('')}</div>
+    </section>
+
+    <section class="skills">
+      <div class="skills-label">Primary languages</div>
+      ${skillsHTML}
+    </section>
+
+    <section class="projects">
+      <div class="projects-label">Selected work</div>
+      <div class="grid">${cardsHTML}</div>
+    </section>
+
+    <footer>generated from public GitHub data · last built ${new Date().toISOString().slice(0,10)}</footer>
+  </div>
+</body>
+</html>`;
+}
+
+async function generate(){
+  const username = usernameInput.value.trim();
+  if(!username){ usernameInput.focus(); return; }
+
+  generateBtn.disabled = true;
+  optionsPanel.hidden = true;
+  clearLog();
+  log(`$ fetch user "${username}"…`);
+
+  try{
+    const profile = await fetchJSON(`https://api.github.com/users/${encodeURIComponent(username)}`);
+    log(`✓ found ${profile.login} — ${profile.public_repos} public repos`, 'ok');
+
+    log(`$ fetch repos…`);
+    let repos = await fetchJSON(`https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=100&sort=pushed`);
+    log(`✓ pulled ${repos.length} repos`, 'ok');
+
+    log(`$ filtering forks & noise…`);
+    const filtered = repos.filter(r => !r.fork && r.name.toLowerCase() !== username.toLowerCase());
+    log(`✓ ${filtered.length} candidate projects`, 'ok');
+
+    if(filtered.length === 0){
+      log(`⚠ no non-fork public repos found — showing forks instead`, 'amber');
+    }
+    const pool = filtered.length ? filtered : repos.filter(r => r.name.toLowerCase() !== username.toLowerCase());
+
+    log(`$ scoring by stars, forks, recency…`);
+    const scored = pool.map(r => ({...r, _score: scoreRepo(r)})).sort((a,b) => b._score - a._score);
+    const top = scored.slice(0, 8);
+    log(`✓ selected top ${top.length}: ${top.map(r=>r.name).join(', ')}`, 'ok');
+
+    const totalStars = repos.reduce((s,r) => s + (r.stargazers_count||0), 0);
+    const langCount = {};
+    pool.forEach(r => { if(r.language) langCount[r.language] = (langCount[r.language]||0) + 1; });
+    const topLanguages = Object.entries(langCount).sort((a,b) => b[1]-a[1]).map(x => x[0]).slice(0, 6);
+
+    log(`$ rendering site…`);
+    const html = buildSiteHTML(profile, top, { totalStars, topLanguages });
+    lastHTML = html;
+    lastUsername = profile.login;
+
+    previewFrame.srcdoc = html;
+    previewFrame.style.display = 'block';
+    emptyState.style.display = 'none';
+    chromeUrl.textContent = `${profile.login}.github.io`;
+
+    profileMini.innerHTML = `<img src="${profile.avatar_url}"><div><div class="name">${escapeHTML(profile.name||profile.login)}</div><div class="meta">@${escapeHTML(profile.login)}</div></div>`;
+    optionsPanel.hidden = false;
+
+    log(`✓ done. preview is live →`, 'ok');
+  }catch(err){
+    if(err.message === 'NOT_FOUND'){
+      log(`✗ no GitHub user named "${username}"`, 'err');
+    }else if(err.message === 'RATE_LIMIT'){
+      log(`✗ GitHub API rate limit hit (60 req/hr, unauthenticated). Wait a bit and retry.`, 'err');
+    }else{
+      log(`✗ something went wrong: ${err.message}`, 'err');
+    }
+  }finally{
+    generateBtn.disabled = false;
+  }
+}
+
+downloadBtn.addEventListener('click', () => {
+  if(!lastHTML) return;
+  const blob = new Blob([lastHTML], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'index.html';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+generateBtn.addEventListener('click', generate);
+usernameInput.addEventListener('keydown', e => { if(e.key === 'Enter') generate(); });
+</script>
+</body>
+</html>
